@@ -5,7 +5,7 @@ import { controlSchema, Library, Player, type loadConfig } from "./music";
 import { createCatalog } from "./llm-library-tracks.js";
 
 export const help = [
-  "/library [query]  /scan  /play <path or query>  /add <path or query>",
+  "/library [query]  /scan  /play <path, ID or query>  /add <path, ID or query>",
   "/pause  /resume  /toggle  /stop  /next  /prev  /queue",
   "/volume <0-100>  /seek <seconds>  /cancel  /help  /quit",
 ].join("\n");
@@ -58,7 +58,7 @@ export class MusicAgent {
         execute: async (_, { abortSignal }) => this.act(() => this.library.scan(), abortSignal),
       }),
       ls_library: tool({
-        description: "Browse only the indexed music library, not the filesystem. Omit folder to list folder IDs and track counts. Pass a returned folder ID to list track IDs and titles. Call repeatedly with different folders or next_offset to browse more. Each reply is capped at 6000 characters. IDs expire on rescan; relist if an ID is rejected.",
+        description: "Browse only the indexed music library, not the filesystem. Omit folder to list folder IDs and track counts. Pass a returned folder ID to list track IDs and titles. Call repeatedly with different folders or next_offset to browse more. Catalog text is capped at 6000 characters. IDs expire on rescan; relist if an ID is rejected.",
         inputSchema: z.object({
           folder: z.string().min(1).optional().describe("Current folder ID, for example S1:F2; omit to list folders"),
           offset: z.number().int().min(0).default(0),
@@ -173,7 +173,7 @@ export class MusicAgent {
     if (name === "/scan") {
       output = await this.act(() => this.library.scan());
     } else if (name === "/play" || name === "/add") {
-      if (!argument) throw new Error(`Usage: ${name} <relative path or search query>`);
+      if (!argument) throw new Error(`Usage: ${name} <track ID, relative path or search query>`);
       const result = this.library.search(argument);
       const track = /^S\d+:T\d+$/.test(argument) || this.library.tracks.includes(argument)
         ? argument : result.total === 1 ? result.tracks[0] : undefined;
