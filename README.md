@@ -22,6 +22,18 @@ bun start
 bun start ./config.local.toml
 ```
 
+## Custom LLMs
+
+Use a local or hosted OpenAI-compatible server. Set its API URL and exact model ID in `config.toml`:
+
+```toml
+[llm]
+base_url = "http://127.0.0.1:1234/v1"
+model = "local-model" # Replace with your server's model ID.
+api_key_env = "OPENAI_API_KEY"
+# api_key = "your-key" # Prefer an environment variable for secrets.
+```
+
 The model must support OpenAI-compatible chat completions, streaming, and tool calling. `base_url` is the API root, usually ending in `/v1`, not `/chat/completions`. For example, OpenAI uses `https://api.openai.com/v1` with a model such as `gpt-4o-mini`.
 
 Set the key in `.env`, which Bun loads automatically:
