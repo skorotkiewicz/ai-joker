@@ -41,11 +41,12 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
   let commandCount = 0;
   let polling = false;
   const add = (role: string, text: string) => {
+    if (closed) return;
     const node = new TextRenderable(renderer, {
       content: `${role}> ${text}`, width: "100%", flexShrink: 0, wrapMode: "word",
       fg: role === "you" ? "#d7bb74" : role === "agent" ? "#deded2" : "#889385",
     });
-    if (!closed) chat.add(node);
+    chat.add(node);
     return node;
   };
   add("system", `Library: ${agent.library.root}\n${help}`);
@@ -89,17 +90,22 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
       return Promise.resolve();
     }
     add("you", text);
-    const reply = add("agent", "...");
+    let reply: TextRenderable | undefined;
     let answer = "";
     chatJob = (async () => {
       try {
         await agent.chat(text, (delta) => {
           answer += delta;
-          if (!closed) reply.content = `agent> ${answer}`;
+          if (!closed) {
+            reply ??= add("agent", "");
+            if (reply) reply.content = `agent> ${answer}`;
+          }
         }, (name, result) => {
+          reply = undefined;
+          answer = "";
           if (!closed) add("tool", result === undefined ? name : `${name}: ${JSON.stringify(result).slice(0, 1500)}`);
         });
-        if (!answer && !closed) reply.content = "agent> Done. See tool results above.";
+        if (!answer && !closed) add("agent", "Done. See tool results above.");
       } catch (error) {
         if (!closed) {
           const message = error instanceof Error ? error.message : String(error);

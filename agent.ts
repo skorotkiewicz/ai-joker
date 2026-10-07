@@ -112,8 +112,7 @@ export class MusicAgent {
   }
 
   async command(text: string): Promise<string> {
-    const [name = "", ...words] = text.trim().split(/\s+/);
-    const argument = words.join(" ");
+    const [name = "", argument = ""] = text.trim().split(/\s+(.*)/s);
     if (name === "/help") return help;
     if (name === "/cancel") { this.cancel(); return "Cancelled the LLM request. Playback is unchanged."; }
     if (name === "/library") {
@@ -141,7 +140,7 @@ export class MusicAgent {
       if (!controlSchema.shape.action.options.includes(action as z.infer<typeof controlSchema>["action"])) {
         throw new Error(`Unknown command ${name}. Use /help.`);
       }
-      if ((action === "volume" || action === "seek") && (!argument || words.length !== 1)) {
+      if ((action === "volume" || action === "seek") && (!argument || /\s/.test(argument))) {
         throw new Error(`Usage: ${name} <number>`);
       }
       const input = controlSchema.parse({ action, value: argument ? Number(argument) : undefined });

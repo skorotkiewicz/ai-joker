@@ -84,7 +84,7 @@ export const controlSchema = z.object({
 type PlaylistEntry = { filename: string; current?: boolean; playing?: boolean };
 
 export class Player {
-  private process?: Bun.Subprocess;
+  private process?: Bun.Subprocess<"ignore", "ignore", "pipe">;
   private directory = "";
   private socketPath = "";
   private closed = false;
@@ -142,7 +142,7 @@ export class Player {
           try {
             const message = JSON.parse(line);
             if (message.request_id !== 1) continue;
-            finish(message.error === "success" ? undefined : new Error(`mpv: ${message.error}`), message.data);
+            finish(message.error === "success" ? undefined : new Error(`mpv ${command[0]}: ${message.error}`), message.data);
             return;
           } catch {
             finish(new Error("Invalid response from mpv."));
