@@ -74,6 +74,61 @@ test("multiple libraries keep duplicate filenames distinct and rescan atomically
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
+test.skipIf(!Bun.which("mpv"))("metadata is excluded and playback errors reach the tools and UI", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "joker-playback-"));
+  const player = new Player();
+  let ui: Awaited<ReturnType<typeof createTestRenderer>> | undefined;
+  try {
+    await Bun.write(join(dir, "Good.wav"), silence());
+    await Bun.write(join(dir, "._Good.wav"), "AppleDouble metadata, not audio");
+    await mkdir(join(dir, "__MACOSX"));
+    await Bun.write(join(dir, "__MACOSX/ghost.mp3"), "not audio");
+    await Bun.write(join(dir, "Broken.mp3"), "not audio");
+    const library = new Library(dir);
+    expect(await library.scan()).toEqual({ total: 2 });
+    expect(library.tracks).toEqual(["Broken.mp3", "Good.wav"]);
+    await expect(library.file("._Good.wav")).rejects.toThrow("not in the scanned");
+    const binary = join(dir, "mpv-null");
+    await Bun.write(binary, `#!/bin/sh\nexec '${Bun.which("mpv")}' --ao=null "$@"\n`);
+    await chmod(binary, 0o700);
+    await player.start(binary);
+    await expect(player.play(library, ["Broken.mp3"])).rejects.toThrow("unrecognized file format");
+    expect((await player.status()).error).toContain("unrecognized file format");
+    await player.play(library, ["Good.wav"]);
+    const playing = await player.status();
+    expect(playing.current).toBe(join(dir, "Good.wav"));
+    expect(playing.error).toBeUndefined();
+
+    const config = configSchema.parse({ llm: { base_url: "http://127.0.0.1:1/v1", model: "test" }, music: { library: dir } });
+    const agent = new MusicAgent(config, library, player);
+    ui = await createTestRenderer({ width: 80, height: 20 });
+    const app = mountUI(ui.renderer, agent, "test", () => {});
+    await app.submit("/play Broken.mp3");
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("Player error: mpv: unrecognized file format");
+    await player.play(library, ["Good.wav", "Broken.mp3"]);
+    await app.submit("/queue");
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("Playing | Good.wav");
+    await app.submit("/next");
+    for (let attempt = 0; !(await player.status()).error && attempt < 100; attempt++) await Bun.sleep(20);
+    expect((await player.status()).error).toContain("unrecognized file format");
+    await app.submit("/queue");
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain("error> mpv: unrecognized file format");
+    expect(ui.captureCharFrame()).toContain("Player error: mpv: unrecognized file format");
+    await expect(player.play(library, ["Broken.mp3"], true)).rejects.toThrow("unrecognized file format");
+    await app.submit("/play Good.wav");
+    expect((await player.status()).error).toBeUndefined();
+    ui.renderer.destroy();
+    expect(player.listenerCount("playback-error")).toBe(0);
+  } finally {
+    ui?.renderer.destroy();
+    await player.close();
+    await rm(dir, { recursive: true, force: true });
+  }
+}, 15_000);
+
 test.skipIf(!Bun.which("mpv"))("library, real mpv, mock tool loop, and terminal input", async () => {
   const dir = await mkdtemp(join(tmpdir(), "joker-test-"));
   const root = join(dir, "music");

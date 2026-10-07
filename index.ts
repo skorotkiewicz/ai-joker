@@ -50,13 +50,17 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
   };
   add("system", `Libraries:\n${agent.library.roots.map((root, index) => `[${index + 1}] ${root}`).join("\n")}\n${help}`);
 
+  const onPlaybackError = (message: string) => { add("error", message); };
+  agent.player.on("playback-error", onPlaybackError);
+
   const poll = async () => {
     if (closed || polling) return;
     polling = true;
     try {
       const state = await agent.player.status();
       if (!closed) {
-        playback.content = `${state.current ? state.paused ? "Paused" : "Playing" : "Stopped"} | ${state.current ? agent.library.label(state.current) : "No track"} | vol ${Math.round(state.volume)} | queue ${state.queue.length}`;
+        playback.content = state.error ? `Player error: ${state.error}`
+          : `${state.current ? state.paused ? "Paused" : "Playing" : "Stopped"} | ${state.current ? agent.library.label(state.current) : "No track"} | vol ${Math.round(state.volume)} | queue ${state.queue.length}`;
         header.content = `ai-joker | ${model} | ${agent.library.tracks.length} tracks${agent.busy ? " | thinking" : ""}`;
       }
     } catch (error) {
@@ -104,7 +108,7 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
           answer = "";
           if (!closed) add("tool", result === undefined ? name : `${name}: ${JSON.stringify(result).slice(0, 1500)}`);
         });
-        if (!answer && !closed) add("agent", "Done. See tool results above.");
+        if (!answer && !closed) add("agent", "See tool results above.");
       } catch (error) {
         if (!closed) {
           const message = error instanceof Error ? error.message : String(error);
@@ -128,6 +132,7 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
   renderer.on("destroy", () => {
     closed = true;
     clearInterval(timer);
+    agent.player.off("playback-error", onPlaybackError);
     agent.cancel();
   });
   return { input, submit };
