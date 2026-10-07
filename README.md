@@ -24,6 +24,15 @@ OPENAI_API_KEY=your-key
 
 `llm.api_key_env` selects the environment variable. `llm.api_key` can set a key directly, but don't commit it. Local servers can run without a key. Relative library paths resolve from the config's directory; `~/` expands to your home.
 
+Configure one or more music directories:
+
+```toml
+[music]
+libraries = ["~/Music", "/mnt/music", "../albums"]
+```
+
+The old `library = "~/Music"` setting still works. Use either `library` or `libraries`, not both. With multiple directories, track paths include a numbered prefix, such as `[2]/Artist/song.flac`. The welcome message lists the corresponding directories. Use the full returned path for `/play` or `/add` when filenames collide. Duplicate directories and overlapping files are indexed only once, using the first directory that contains the file.
+
 ## Chat and controls
 
 Try "play some Miles Davis" or "find ambient music and queue three tracks". The agent searches filenames and folders, then plays exact library paths through mpv. It can rescan, replace or append a queue, and control playback. Tool calls and results appear in the chat.
@@ -45,7 +54,7 @@ Try "play some Miles Davis" or "find ambient music and queue three tracks". The 
 
 Use exact relative paths when a query matches multiple tracks. Paths with spaces do not need quotes. Slash commands cancel an active LLM request and do not call the API, so playback controls work while the server is unavailable. Escape cancels chat. Page Up/Down or the mouse wheel scrolls. Ctrl+C exits and stops this app's mpv process.
 
-The app scans recursively at startup and on `/scan`. It skips symlinks and accepts MP3, FLAC, WAV, OGG, Opus, M4A, AAC, AIFF, ALAC, WMA, APE, and WavPack files. Search uses filenames, not audio tags. Playback rejects unscanned paths and paths resolving outside the library. mpv runs without your personal config or video output.
+The app scans every configured directory recursively at startup and on `/scan`. A missing or unreadable directory fails the scan without replacing the previous index. It skips symlinks and accepts MP3, FLAC, WAV, OGG, Opus, M4A, AAC, AIFF, ALAC, WMA, APE, and WavPack files. Search uses filenames, not audio tags. Playback rejects unscanned paths and paths resolving outside the library. mpv runs without your personal config or video output.
 
 Chat history stays in memory for this session. Requests include your chat and tool results, including relative filenames, so only use an API you trust. Nothing uploads audio files.
 

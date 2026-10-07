@@ -1,6 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { isStepCount, streamText, tool, type ModelMessage } from "ai";
-import { relative } from "node:path";
 import { z } from "zod";
 import { controlSchema, Library, Player, type loadConfig } from "./music";
 
@@ -43,7 +42,7 @@ export class MusicAgent {
         execute: async (_, { abortSignal }) => this.act(() => this.library.scan(), abortSignal),
       }),
       search_library: tool({
-        description: "Search filenames and folders. Empty query lists tracks. Use returned relative paths for playback. Paginate using offset.",
+        description: "Search filenames and folders across all libraries. Empty query lists tracks. Use exact returned track paths, including any [N]/ library prefix, for playback. Paginate using offset.",
         inputSchema: z.object({
           query: z.string().default(""), offset: z.number().int().min(0).default(0),
           limit: z.number().int().min(1).max(100).default(30),
@@ -68,8 +67,8 @@ export class MusicAgent {
           const status = await this.player.status();
           return {
             ...status,
-            current: status.current ? relative(this.library.root, status.current) : null,
-            queue: status.queue.map((entry) => ({ ...entry, filename: relative(this.library.root, entry.filename) })),
+            current: status.current ? this.library.label(status.current) : null,
+            queue: status.queue.map((entry) => ({ ...entry, filename: this.library.label(entry.filename) })),
           };
         },
       }),
@@ -122,7 +121,7 @@ export class MusicAgent {
     if (name === "/queue") {
       const status = await this.player.status();
       return status.queue.map((track, index) =>
-        `${track.playing ? ">" : " "} ${index + 1}. ${relative(this.library.root, track.filename)}`,
+        `${track.playing ? ">" : " "} ${index + 1}. ${this.library.label(track.filename)}`,
       ).join("\n") || "Queue is empty.";
     }
 

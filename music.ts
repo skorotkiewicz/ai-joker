@@ -11,16 +11,20 @@ export const configSchema = z.object({
     api_key: z.string().optional(),
     api_key_env: z.string().min(1).default("OPENAI_API_KEY"),
   }),
-  music: z.object({ library: z.string().trim().min(1) }),
+  music: z.object({
+    library: z.string().trim().min(1).optional(),
+    libraries: z.array(z.string().trim().min(1)).min(1).optional(),
+  }).refine((music) => (music.library !== undefined) !== (music.libraries !== undefined), {
+    message: "Set either music.library or music.libraries, not both.",
+  }).transform((music) => ({ libraries: music.libraries ?? [music.library!] })),
   player: z.object({ binary: z.string().min(1).default("mpv") }).default({ binary: "mpv" }),
 });
 
 export async function loadConfig(file = "config.toml") {
   const config = configSchema.parse(Bun.TOML.parse(await Bun.file(file).text()));
-  const path = config.music.library;
-  config.music.library = path === "~" ? homedir()
+  config.music.libraries = config.music.libraries.map((path) => path === "~" ? homedir()
     : path.startsWith("~/") ? join(homedir(), path.slice(2))
-    : resolve(dirname(resolve(file)), path);
+    : resolve(dirname(resolve(file)), path));
   return config;
 }
 
@@ -30,25 +34,41 @@ const audioExtensions = new Set([
 
 export class Library {
   tracks: string[] = [];
-  constructor(public root: string) {}
+  roots: string[];
+  private files = new Map<string, { root: string; path: string }>();
+  private labels = new Map<string, string>();
+  constructor(roots: string | string[]) {
+    this.roots = typeof roots === "string" ? [roots] : roots;
+  }
 
   async scan() {
-    const root = await realpath(this.root);
-    const tracks: string[] = [];
-    const directories = [root];
-    while (directories.length) {
-      const directory = directories.pop()!;
-      for (const entry of await readdir(directory, { withFileTypes: true })) {
-        const path = join(directory, entry.name);
-        if (entry.isDirectory()) directories.push(path);
-        else if (entry.isFile() && audioExtensions.has(extname(entry.name).toLowerCase())) {
-          tracks.push(relative(root, path));
+    const roots = [...new Set(await Promise.all(this.roots.map((root) => realpath(root))))];
+    const files = new Map<string, { root: string; path: string }>();
+    const labels = new Map<string, string>();
+    for (const [index, root] of roots.entries()) {
+      const directories = [root];
+      while (directories.length) {
+        const directory = directories.pop()!;
+        for (const entry of await readdir(directory, { withFileTypes: true })) {
+          const path = join(directory, entry.name);
+          if (entry.isDirectory()) directories.push(path);
+          else if (entry.isFile() && audioExtensions.has(extname(entry.name).toLowerCase()) && !labels.has(path)) {
+            const track = `${roots.length > 1 ? `[${index + 1}]/` : ""}${relative(root, path)}`;
+            files.set(track, { root, path });
+            labels.set(path, track);
+          }
         }
       }
     }
-    this.root = root;
-    this.tracks = tracks.sort((a, b) => a.localeCompare(b));
-    return { total: tracks.length };
+    this.roots = roots;
+    this.files = files;
+    this.labels = labels;
+    this.tracks = [...files.keys()].sort((a, b) => a.localeCompare(b));
+    return { total: this.tracks.length };
+  }
+
+  label(file: string) {
+    return this.labels.get(file) ?? file;
   }
 
   search(query = "", offset = 0, limit = 30) {
@@ -59,9 +79,10 @@ export class Library {
   }
 
   async file(track: string) {
-    if (!this.tracks.includes(track)) throw new Error("Track is not in the scanned library. Search or /scan first.");
-    const file = await realpath(resolve(this.root, track));
-    const local = relative(this.root, file);
+    const entry = this.files.get(track);
+    if (!entry) throw new Error("Track is not in the scanned library. Search or /scan first.");
+    const file = await realpath(entry.path);
+    const local = relative(entry.root, file);
     if (isAbsolute(local) || local === ".." || local.startsWith(`..${sep}`)) {
       throw new Error("Track resolves outside the music library.");
     }

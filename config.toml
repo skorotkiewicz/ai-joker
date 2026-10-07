@@ -8,7 +8,9 @@ api_key_env = "OPENAI_API_KEY"
 
 [music]
 # ~/ expands to your home. Relative paths are relative to this config file.
-library = "~/Music"
+libraries = ["~/Music"]
+# Add more paths to the list, for example "/mnt/music".
+# The old `library = "~/Music"` setting still works instead of libraries.
 
 [player]
 binary = "mpv"

@@ -2,7 +2,6 @@ import {
   BoxRenderable, createCliRenderer, InputRenderable, InputRenderableEvents,
   ScrollBoxRenderable, TextRenderable, type CliRenderer,
 } from "@opentui/core";
-import { relative } from "node:path";
 import { help, MusicAgent } from "./agent";
 import { Library, loadConfig, Player } from "./music";
 
@@ -49,7 +48,7 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
     chat.add(node);
     return node;
   };
-  add("system", `Library: ${agent.library.root}\n${help}`);
+  add("system", `Libraries:\n${agent.library.roots.map((root, index) => `[${index + 1}] ${root}`).join("\n")}\n${help}`);
 
   const poll = async () => {
     if (closed || polling) return;
@@ -57,7 +56,7 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
     try {
       const state = await agent.player.status();
       if (!closed) {
-        playback.content = `${state.current ? state.paused ? "Paused" : "Playing" : "Stopped"} | ${state.current ? relative(agent.library.root, state.current) : "No track"} | vol ${Math.round(state.volume)} | queue ${state.queue.length}`;
+        playback.content = `${state.current ? state.paused ? "Paused" : "Playing" : "Stopped"} | ${state.current ? agent.library.label(state.current) : "No track"} | vol ${Math.round(state.volume)} | queue ${state.queue.length}`;
         header.content = `ai-joker | ${model} | ${agent.library.tracks.length} tracks${agent.busy ? " | thinking" : ""}`;
       }
     } catch (error) {
@@ -136,7 +135,7 @@ export function mountUI(renderer: CliRenderer, agent: MusicAgent, model: string,
 
 async function main() {
   const config = await loadConfig(process.argv[2]);
-  const library = new Library(config.music.library);
+  const library = new Library(config.music.libraries);
   await library.scan();
   const player = new Player();
   let renderer: CliRenderer | undefined;

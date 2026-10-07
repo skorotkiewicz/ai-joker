@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { mkdtemp, mkdir, rm, symlink, unlink, chmod } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { createTestRenderer } from "@opentui/core/testing";
 import { MusicAgent } from "./agent";
@@ -35,8 +35,42 @@ test("TOML validation and paths relative to config", async () => {
   try {
     const path = join(dir, "config.toml");
     await Bun.write(path, '[llm]\nbase_url="http://localhost:1234/v1"\nmodel="test"\n[music]\nlibrary="tracks"\n');
-    expect((await loadConfig(path)).music.library).toBe(join(dir, "tracks"));
+    expect((await loadConfig(path)).music.libraries).toEqual([join(dir, "tracks")]);
+    await Bun.write(path, `[llm]\nbase_url="http://localhost:1234/v1"\nmodel="test"\n[music]\nlibraries=["tracks", "~/Music", ${JSON.stringify(join(dir, "other"))}]\n`);
+    expect((await loadConfig(path)).music.libraries).toEqual([join(dir, "tracks"), join(homedir(), "Music"), join(dir, "other")]);
+    const valid = { llm: { base_url: "http://localhost/v1", model: "test" } };
+    for (const music of [{}, { libraries: [] }, { libraries: [""] }, { library: "tracks", libraries: ["other"] }]) {
+      expect(configSchema.safeParse({ ...valid, music }).success).toBe(false);
+    }
     expect(configSchema.safeParse({ llm: { base_url: "file:///tmp", model: "" }, music: { library: "" } }).success).toBe(false);
+  } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test("multiple libraries keep duplicate filenames distinct and rescan atomically", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "joker-libraries-"));
+  const roots = [join(dir, "one"), join(dir, "two")];
+  const track = "Artist/song.wav";
+  try {
+    for (const root of roots) {
+      await mkdir(join(root, "Artist"), { recursive: true });
+      await Bun.write(join(root, track), silence());
+    }
+    const library = new Library([roots[0]!, roots[0]!, roots[1]!, join(roots[0]!, "Artist")]);
+    expect(await library.scan()).toEqual({ total: 2 });
+    expect(library.search("song").tracks).toEqual([`[1]/${track}`, `[2]/${track}`]);
+    expect(library.roots).toEqual([roots[0]!, roots[1]!, join(roots[0]!, "Artist")]);
+    expect(await library.file(`[1]/${track}`)).toBe(join(roots[0]!, track));
+    expect(await library.file(`[2]/${track}`)).toBe(join(roots[1]!, track));
+    expect(library.label(join(roots[1]!, track))).toBe(`[2]/${track}`);
+    await expect(library.file(track)).rejects.toThrow("not in the scanned");
+    await expect(library.file("[2]/../one/Artist/song.wav")).rejects.toThrow("not in the scanned");
+    await unlink(join(roots[0]!, track));
+    await symlink(join(roots[1]!, track), join(roots[0]!, track));
+    await expect(library.file(`[1]/${track}`)).rejects.toThrow("outside");
+    library.roots.push(join(dir, "missing"));
+    await expect(library.scan()).rejects.toThrow();
+    expect(library.tracks).toEqual([`[1]/${track}`, `[2]/${track}`]);
+    expect(await library.file(`[2]/${track}`)).toBe(join(roots[1]!, track));
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
 
@@ -174,6 +208,23 @@ test.skipIf(!Bun.which("mpv"))("library, real mpv, mock tool loop, and terminal 
     expect(narrow).toContain("Ask for music or /help");
     ui.mockInput.pressCtrlC();
     expect(quit).toBe(true);
+
+    const secondRoot = join(dir, "music-other");
+    await mkdir(join(secondRoot, "Artist"), { recursive: true });
+    await Bun.write(join(secondRoot, tracks[0]!), silence());
+    const multiple = new Library([root, secondRoot]);
+    expect(await multiple.scan()).toEqual({ total: 4 });
+    const multiAgent = new MusicAgent({ ...config, music: { libraries: [root, secondRoot] } }, multiple, player);
+    ui.renderer.destroy();
+    ui = await createTestRenderer({ width: 80, height: 20 });
+    const multiApp = mountUI(ui.renderer, multiAgent, "test-model", () => {});
+    await multiApp.submit(`/play [2]/${tracks[0]}`);
+    await waitForTrack(player, join(secondRoot, tracks[0]!));
+    expect(await multiAgent.command("/queue")).toContain(`[2]/${tracks[0]}`);
+    await multiApp.submit("/queue");
+    await ui.renderOnce();
+    expect(ui.captureCharFrame()).toContain(`Playing | [2]/${tracks[0]}`);
+    expect(requests).toBe(6); // Three tool-loop requests, one cancelled request, and two failed attempts.
     await player.close();
     await player.close();
     await expect(player.status()).rejects.toThrow("not running");
