@@ -37,3 +37,4 @@ config.local.toml
 .DS_Store
 
 .agents
+config.toml
