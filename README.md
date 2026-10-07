@@ -1,6 +1,14 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="ai-joker: a grinning cassette DJ in jester headphones" width="600">
+</p>
+
 # ai-joker
 
 A local music agent with an OpenTUI chat interface, AI SDK tool calling, and mpv playback. Runs on Bun with Linux or macOS Unix sockets.
+
+<p align="center">
+  <img src="assets/screenshot.png" alt="ai-joker terminal chat browsing the music library and playing tracks" width="1000">
+</p>
 
 ## Run
 

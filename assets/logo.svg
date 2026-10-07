@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 210" role="img" aria-labelledby="title description">
+  <title id="title">ai-joker</title>
+  <desc id="description">A grinning cassette in a jester hat and headphones. Local tunes. Questionable taste.</desc>
+  <g stroke="#252b23" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+    <!-- A three-bell hat, because a neural network is not a substitute for taste. -->
+    <path d="M43 88 30 42Q57 23 81 66L109 19 133 66Q158 28 181 46L171 88Z" fill="#e7b54f"/>
+    <path d="m81 66 7 21m45-21-5 21" fill="none"/>
+    <circle cx="30" cy="41" r="8" fill="#b8d09e"/>
+    <circle cx="109" cy="18" r="8" fill="#f6edd5"/>
+    <circle cx="182" cy="45" r="8" fill="#b8d09e"/>
+    <!-- Headphones wrap around the hat rather than pretending to be a robot brain. -->
+    <path d="M19 116C19 43 207 43 207 116" fill="none" stroke="#f6edd5" stroke-width="16"/>
+    <path d="M19 116C19 43 207 43 207 116" fill="none" stroke-width="8"/>
+    <rect x="28" y="84" width="171" height="95" rx="16" fill="#f6edd5"/>
+    <path d="M41 96h17m112 0h16" stroke="#e7b54f"/>
+    <!-- The tape reels are eyes, and the tape between them is an audio waveform. -->
+    <rect x="46" y="103" width="135" height="38" rx="19" fill="#b8d09e" stroke-width="3"/>
+    <path d="m83 122 9-5 9 10 9-15 9 17 9-12 12 5" fill="none" stroke-width="2.5"/>
+    <circle cx="66" cy="122" r="14" fill="#f6edd5" stroke-width="3"/>
+    <circle cx="160" cy="122" r="14" fill="#f6edd5" stroke-width="3"/>
+    <circle cx="69" cy="121" r="5" fill="#252b23" stroke="none"/>
+    <path d="m157 116 8 6-8 6Z" fill="#252b23" stroke="none"/>
+    <path d="M76 151Q113 176 152 149" fill="none"/>
+    <path d="m114 161 1 6" stroke-width="3"/>
+    <circle cx="41" cy="166" r="2" fill="#252b23" stroke="none"/>
+    <circle cx="186" cy="166" r="2" fill="#252b23" stroke="none"/>
+    <rect x="7" y="108" width="25" height="44" rx="10" fill="#252b23" stroke="#f6edd5"/>
+    <rect x="196" y="108" width="25" height="44" rx="10" fill="#252b23" stroke="#f6edd5"/>
+    <!-- One loose cable. Please do not let the DJ eat it. -->
+    <path d="M209 153c34 17 26 42-2 40-25-2-20-27 2-20l19 7" fill="none" stroke="#f6edd5" stroke-width="8"/>
+    <path d="M209 153c34 17 26 42-2 40-25-2-20-27 2-20l19 7" fill="none"/>
+    <path d="m228 175 15 4-2 10-15-4Zm14 9 12 3" fill="#e7b54f"/>
+  </g>
+  <g font-family="'DejaVu Sans Mono', monospace" paint-order="stroke fill" stroke="#f6edd5" stroke-linejoin="round">
+    <text x="247" y="124" font-size="78" font-weight="900" letter-spacing="-5" fill="#252b23" stroke-width="7">ai-joker</text>
+    <text x="251" y="158" font-size="15" font-weight="700" letter-spacing="1" fill="#3f5137" stroke-width="2.5">LOCAL TUNES. QUESTIONABLE TASTE.</text>
+  </g>
+</svg>
