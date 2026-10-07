@@ -180,14 +180,14 @@ test.skipIf(!Bun.which("mpv"))("library, real mpv, mock tool loop, and terminal 
     expect((await player.status()).queue).toHaveLength(0);
 
     let requests = 0;
-    let mode: "tools" | "slow" | "error" = "tools";
+    let mode: "tools" | "browse" | "slow" | "error" = "tools";
     server = Bun.serve({
       port: 0,
       async fetch(request) {
         expect(new URL(request.url).pathname).toBe("/v1/chat/completions");
         const body = await request.json() as { model: string; tools: unknown[]; messages: { role: string }[] };
         expect(body.model).toBe("test-model");
-        expect(body.tools.length).toBe(5);
+        expect(body.tools.length).toBe(6);
         requests++;
         if (mode === "error") return new Response("offline", { status: 503 });
         if (mode === "slow") {
@@ -195,17 +195,26 @@ test.skipIf(!Bun.which("mpv"))("library, real mpv, mock tool loop, and terminal 
             controller.enqueue(new TextEncoder().encode(": waiting\n\n"));
           } }), { headers: { "Content-Type": "text/event-stream" } });
         }
-        const toolResults = body.messages.filter((message) => message.role === "tool").length;
-        const name = toolResults === 0 ? "search_library" : "play_tracks";
-        const input = toolResults === 0 ? { query: "first" } : { tracks: [tracks[0]], append: false };
-        const delta = toolResults < 2
-          ? { tool_calls: [{ index: 0, id: `call-${toolResults}`, type: "function", function: { name, arguments: JSON.stringify(input) } }] }
-          : { content: "Playing First song." };
+        const lastUser = body.messages.findLastIndex((message) => message.role === "user");
+        const toolResults = body.messages.slice(lastUser + 1).filter((message) => message.role === "tool").length;
+        const plan = mode === "browse" ? [
+          { name: "ls_library", input: { limit: 1 } },
+          { name: "ls_library", input: { offset: 1, limit: 1 } },
+          { name: "ls_library", input: { folder: "S1:F2", limit: 1 } },
+          { name: "play_tracks", input: { tracks: ["S1:T4"] } },
+        ] : [
+          { name: "search_library", input: { query: "first" } },
+          { name: "play_tracks", input: { tracks: [tracks[0]], append: false } },
+        ];
+        const call = plan[toolResults];
+        const delta = call
+          ? { tool_calls: [{ index: 0, id: `call-${toolResults}`, type: "function", function: { name: call.name, arguments: JSON.stringify(call.input) } }] }
+          : { content: mode === "browse" ? "Playing from the second library." : "Playing First song." };
         const chunk = (delta: unknown, finish_reason: string | null) => JSON.stringify({
           id: "chat-test", object: "chat.completion.chunk", created: 1, model: "test-model",
           choices: [{ index: 0, delta, finish_reason }],
         });
-        return new Response(`data: ${chunk(delta, null)}\n\ndata: ${chunk({}, toolResults < 2 ? "tool_calls" : "stop")}\n\ndata: [DONE]\n\n`, {
+        return new Response(`data: ${chunk(delta, null)}\n\ndata: ${chunk({}, call ? "tool_calls" : "stop")}\n\ndata: [DONE]\n\n`, {
           headers: { "Content-Type": "text/event-stream" },
         });
       },
@@ -280,6 +289,27 @@ test.skipIf(!Bun.which("mpv"))("library, real mpv, mock tool loop, and terminal 
     await ui.renderOnce();
     expect(ui.captureCharFrame()).toContain(`Playing | [2]/${tracks[0]}`);
     expect(requests).toBe(6); // Three tool-loop requests, one cancelled request, and two failed attempts.
+    mode = "browse";
+    const listings: { text: string; returned: number; next_offset: number | null }[] = [];
+    let answer = "";
+    await multiAgent.chat("pick a track from the second library", (text) => { answer += text; }, (name, result) => {
+      if (name === "ls_library" && result !== undefined) {
+        listings.push(result as typeof listings[number]);
+      }
+    });
+    expect(requests).toBe(11);
+    expect(listings).toHaveLength(3);
+    expect(listings.every((page) => page.text.length <= 6000 && page.returned === 1)).toBe(true);
+    expect(listings[0]!.next_offset).toBe(1);
+    expect(listings[1]!.next_offset).toBeNull();
+    expect(listings[2]!.text).toContain("S1:T4");
+    expect(answer).toBe("Playing from the second library.");
+    expect((await player.status()).current).toBe(join(secondRoot, tracks[0]!));
+    await multiAgent.command("/scan");
+    await expect(multiAgent.command("/play S1:T4")).rejects.toThrow("Unknown track ID");
+    await expect(multiAgent.command("/play S2:T9999")).rejects.toThrow("Unknown track ID");
+    await multiAgent.command("/play S2:T4");
+    expect((await player.status()).current).toBe(join(secondRoot, tracks[0]!));
     await player.close();
     await player.close();
     await expect(player.status()).rejects.toThrow("not running");

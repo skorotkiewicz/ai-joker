@@ -37,6 +37,10 @@ The old `library = "~/Music"` setting still works. Use either `library` or `libr
 
 Try "play some Miles Davis" or "find ambient music and queue three tracks". The agent searches filenames and folders, then plays exact library paths through mpv. It can rescan, replace or append a queue, and control playback. Tool calls and results appear in the chat.
 
+For broad requests, the agent uses `ls_library` to list folders and track counts, then calls it again with a folder ID to see titles. It can call the tool repeatedly with different folders or the returned `next_offset`. Each reply contains at most 100 entries and 6,000 characters of catalog text, defaulting to 40 entries. These are character limits, not exact token counts; multiple replies still add to the conversation context. The existing eight-step limit bounds each chat turn.
+
+Listings use IDs such as `S1:F2` for folders and `S1:T42` for tracks. The agent can pass track IDs directly to `play_tracks`; `/play` and `/add` accept them too. A rescan invalidates old IDs rather than letting them select different songs. `search_library` still handles specific queries. The listing tool only reads the scanned catalog, not arbitrary filesystem paths or shell commands.
+
 | Command | What it does |
 | --- | --- |
 | `/library [query]` | Search, showing up to 30 matches |
@@ -62,6 +66,7 @@ Chat history stays in memory for this session. Requests include your chat and to
 
 ```sh
 bun test
+bun llm-library-tracks.js --self-test
 bun run typecheck
 ```
 
